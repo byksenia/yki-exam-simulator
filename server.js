@@ -42,11 +42,11 @@ function findClaudeCli() {
 const CLAUDE_CLI = PROVIDER === "openai" || client ? null : findClaudeCli();
 const BACKEND = PROVIDER === "openai" ? "openai" : client ? "api" : CLAUDE_CLI ? "claude-code" : "none";
 const MODEL =
-  BACKEND === "openai" ? process.env.OPENAI_MODEL || "gpt-5"
+  BACKEND === "openai" ? process.env.OPENAI_MODEL || "gpt-6.1-sol"
   : process.env.YKI_MODEL || (BACKEND === "api" ? "claude-opus-5-5" : "opus");
 // Model for quick interactive calls (the interviewer's follow-up questions).
 const FAST_MODEL =
-  BACKEND === "openai" ? process.env.OPENAI_FAST_MODEL || process.env.OPENAI_MODEL || "gpt-5-mini"
+  BACKEND === "openai" ? process.env.OPENAI_FAST_MODEL || MODEL
   : process.env.YKI_FAST_MODEL || "claude-sonnet-5-5";
 
 const MIME = {
@@ -127,6 +127,8 @@ async function askOpenAI({ prompt, schema, fast = false }) {
   const body = {
     model: fast ? FAST_MODEL : MODEL,
     messages,
+    // Quick interviewer questions: little reasoning, so the reply comes in a few seconds.
+    ...(fast ? { reasoning_effort: "low" } : {}),
     ...(schema ? { response_format: { type: "json_schema", json_schema: { name: "result", schema } } } : {}),
   };
   const call = async (b) => {
@@ -143,6 +145,11 @@ async function askOpenAI({ prompt, schema, fast = false }) {
     return { res, data };
   };
   let { res, data } = await call(body);
+  // Models without reasoning settings reject reasoning_effort.
+  if (res.status === 400 && body.reasoning_effort) {
+    delete body.reasoning_effort;
+    ({ res, data } = await call(body));
+  }
   // Providers without json_schema support: ask for plain JSON instead.
   if (res.status === 400 && schema) ({ res, data } = await call({ ...body, response_format: { type: "json_object" } }));
   if (res.status === 400 && schema) ({ res, data } = await call({ model: body.model, messages }));

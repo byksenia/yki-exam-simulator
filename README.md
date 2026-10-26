@@ -63,13 +63,12 @@ The server can also use any API that speaks the OpenAI Chat Completions format: 
 
    ```bash
    OPENAI_API_KEY=sk-...your key...
-   OPENAI_MODEL=gpt-5
-   OPENAI_FAST_MODEL=gpt-5-mini
+   OPENAI_MODEL=gpt-6.1-sol
    ```
 
-4. Restart the server. It prints `Rating with an OpenAI-compatible API (gpt-5 at https://api.openai.com/v1)`.
+4. Restart the server. It prints `Rating with an OpenAI-compatible API (gpt-6.1-sol at https://api.openai.com/v1)`.
 
-`OPENAI_MODEL` rates the exam; `OPENAI_FAST_MODEL` asks the speaking interviewer's follow-up questions and should be a fast model. You can use any model your account has access to.
+`OPENAI_MODEL` rates the exam and also asks the speaking interviewer's follow-up questions. To use a cheaper or faster model for the follow-ups, add `OPENAI_FAST_MODEL=<model>`. Any model your account has access to works.
 
 ### Other providers
 
@@ -78,14 +77,14 @@ Set the provider's address in `OPENAI_BASE_URL`, its key in `OPENAI_API_KEY` and
 | Provider | `OPENAI_BASE_URL` | Key from | Example `OPENAI_MODEL` |
 |---|---|---|---|
 | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `gemini-2.5-pro` |
-| OpenRouter (many models, one key) | `https://openrouter.ai/api/v1` | [openrouter.ai/keys](https://openrouter.ai/keys) | `openai/gpt-5` |
+| OpenRouter (many models, one key) | `https://openrouter.ai/api/v1` | [openrouter.ai/keys](https://openrouter.ai/keys) | `openai/gpt-6.1-sol` |
 | Ollama (free, on your computer) | `http://localhost:11434/v1` | no key needed | `qwen2.5:14b` |
 
 For a provider without a key (Ollama), or when `.env` also has an `ANTHROPIC_API_KEY`, add `AI_PROVIDER=openai` so the server knows which one to use. Model names change over time; check the provider's model list.
 
 Good to know:
 
-- **Rating quality depends on the model.** The examiner instructions were written and tested with Claude. Large models (GPT-5, Gemini Pro) should rate well; small local models often misjudge Finnish grammar and give unreliable levels.
+- **Rating quality depends on the model.** The examiner instructions were written and tested with Claude. Large models (GPT-6.1 Sol, Gemini Pro) should rate well; small local models often misjudge Finnish grammar and give unreliable levels.
 - **The key stays on your computer**, just like the Claude key: only the local server reads `.env`.
 - **A wrong key** shows "The API key was rejected. Check OPENAI_API_KEY in .env." on the results page.
 
@@ -110,8 +109,8 @@ npm start                 # prints "Rating with Claude Code and your Claude subs
 | `YKI_FAST_MODEL` | `claude-sonnet-5-5` | Claude model for the speaking interviewer's quick follow-up questions. |
 | `OPENAI_API_KEY` | (empty) | Key for OpenAI or another OpenAI-compatible provider. |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Address of the OpenAI-compatible API. |
-| `OPENAI_MODEL` | `gpt-5` | Model that rates the exam. |
-| `OPENAI_FAST_MODEL` | `gpt-5-mini` | Model for the interviewer's follow-up questions. |
+| `OPENAI_MODEL` | `gpt-6.1-sol` | Model that rates the exam. |
+| `OPENAI_FAST_MODEL` | same as `OPENAI_MODEL` | Model for the interviewer's follow-up questions. |
 | `AI_PROVIDER` | (automatic) | `anthropic` or `openai`. Needed only for keyless providers or when both keys are set. |
 
 With no key at all, the server uses the Claude Code CLI if you're signed in to it.
