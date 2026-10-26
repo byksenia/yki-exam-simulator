@@ -1,0 +1,20 @@
+node_modules/
+
+# Secrets: your API key lives in .env, never in git
+.env
+.env.*
+!.env.example
+
+# Self-signed certificate for `npm run phone` (private key, local network address)
+.cert/
+
+# Generated with macOS voices by `npm run audio`; each user renders their own
+public/audio/
+
+# Personal material and local tool settings
+social/
+.claude/
+
+# OS and editor clutter
+.DS_Store
+*.log

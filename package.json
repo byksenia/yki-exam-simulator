@@ -1,0 +1,18 @@
+{
+  "name": "yki-exam-simulator",
+  "version": "1.0.0",
+  "description": "YKI-testi practice exams (Finnish, perustaso A1–A2 and keskitaso B1–B2) with Claude as the examiner",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "phone": "node server.js --phone",
+    "audio": "node scripts/render-audio.mjs"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0"
+  }
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="YKI harjoituskoe">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5df0c0"/>
+      <stop offset="1" stop-color="#8cc8ff"/>
+    </linearGradient>
+  </defs>
+  <!-- speech bubble = speaking a language; check = passing the exam -->
+  <path d="M14 5h36a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H29l-13 10V49h-2A10 10 0 0 1 4 39V15A10 10 0 0 1 14 5z" fill="url(#g)"/>
+  <path d="M20 27.5l8 8 16-16" fill="none" stroke="#06121f" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
