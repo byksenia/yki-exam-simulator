@@ -41,7 +41,7 @@ export function renderResults({ record, exam, audio, h, SECTION_INFO, onHome, on
       "p",
       { class: "tiny" },
       (exam.level === "keskitaso" ? "Scale: alle 3 = below B1 · 3 = B1 · 4 = B2. " : "Scale: alle 1 = below A1 · 1 = A1 · 2 = A2. ") +
-        "Writing and speaking are rated by Claude using the YKI criteria; " +
+        "Writing and speaking are rated by AI using the YKI criteria; " +
         "speech is judged from the transcript, answer length and timing — pronunciation can only be judged indirectly. Treat the levels as an estimate.",
     ),
     h(

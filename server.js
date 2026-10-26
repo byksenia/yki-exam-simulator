@@ -24,7 +24,11 @@ const PORT = Number(process.env.PORT) || 5173;
 const PHONE = process.argv.includes("--phone");
 const HTTPS_PORT = PORT + 1;
 const hasKey = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
-const client = hasKey ? new Anthropic() : null;
+// Any OpenAI-compatible chat API (OpenAI/ChatGPT, Gemini, OpenRouter, Ollama, …) can be the
+// examiner instead: set AI_PROVIDER=openai, or just OPENAI_API_KEY without an Anthropic key.
+const PROVIDER = (process.env.AI_PROVIDER || "").toLowerCase() || (hasKey ? "anthropic" : process.env.OPENAI_API_KEY ? "openai" : "");
+const OPENAI_BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+const client = hasKey && PROVIDER !== "openai" ? new Anthropic() : null;
 
 // Without an API key, rating goes through the Claude Code CLI, which uses the Claude
 // subscription you are signed in with (`claude auth login`).
@@ -35,11 +39,15 @@ function findClaudeCli() {
     return null;
   }
 }
-const CLAUDE_CLI = hasKey ? null : findClaudeCli();
-const BACKEND = hasKey ? "api" : CLAUDE_CLI ? "claude-code" : "none";
-const MODEL = process.env.YKI_MODEL || (BACKEND === "api" ? "claude-opus-5-5" : "opus");
+const CLAUDE_CLI = PROVIDER === "openai" || client ? null : findClaudeCli();
+const BACKEND = PROVIDER === "openai" ? "openai" : client ? "api" : CLAUDE_CLI ? "claude-code" : "none";
+const MODEL =
+  BACKEND === "openai" ? process.env.OPENAI_MODEL || "gpt-5"
+  : process.env.YKI_MODEL || (BACKEND === "api" ? "claude-opus-5-5" : "opus");
 // Model for quick interactive calls (the interviewer's follow-up questions).
-const FAST_MODEL = process.env.YKI_FAST_MODEL || "claude-sonnet-5-5";
+const FAST_MODEL =
+  BACKEND === "openai" ? process.env.OPENAI_FAST_MODEL || process.env.OPENAI_MODEL || "gpt-5-mini"
+  : process.env.YKI_FAST_MODEL || "claude-sonnet-5-5";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -101,6 +109,60 @@ async function askClaude({ prompt, schema, effort = "high", fast = false }) {
     .map((b) => b.text)
     .join("");
   return schema ? JSON.parse(text) : text.trim();
+}
+
+// One call to an OpenAI-compatible Chat Completions API. The schema is sent as a
+// json_schema response format and also written into the prompt, so providers that ignore
+// response formats still answer in the right shape.
+async function askOpenAI({ prompt, schema, fast = false }) {
+  const messages = [
+    { role: "system", content: RATER_SYSTEM },
+    {
+      role: "user",
+      content: schema
+        ? prompt + "\n\nAnswer with ONLY one JSON value that matches this JSON Schema (no prose, no code fences):\n" + JSON.stringify(schema)
+        : prompt,
+    },
+  ];
+  const body = {
+    model: fast ? FAST_MODEL : MODEL,
+    messages,
+    ...(schema ? { response_format: { type: "json_schema", json_schema: { name: "result", schema } } } : {}),
+  };
+  const call = async (b) => {
+    const res = await fetch(OPENAI_BASE + "/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.OPENAI_API_KEY ? { Authorization: "Bearer " + process.env.OPENAI_API_KEY } : {}),
+      },
+      body: JSON.stringify(b),
+      signal: AbortSignal.timeout(10 * 60_000),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { res, data };
+  };
+  let { res, data } = await call(body);
+  // Providers without json_schema support: ask for plain JSON instead.
+  if (res.status === 400 && schema) ({ res, data } = await call({ ...body, response_format: { type: "json_object" } }));
+  if (res.status === 400 && schema) ({ res, data } = await call({ model: body.model, messages }));
+  if (!res.ok) {
+    const detail = data.error?.message || data.message || `HTTP ${res.status}`;
+    const msg =
+      res.status === 401 || res.status === 403 ? "The API key was rejected. Check OPENAI_API_KEY in .env."
+      : res.status === 429 ? "Rate limit or no credits left on the API account — wait a minute or check billing, then retry."
+      : res.status === 404 ? `Model or address not found (${MODEL} at ${OPENAI_BASE}): ${detail}`
+      : `AI API error: ${detail}`;
+    throw Object.assign(new Error(msg), { status: res.status === 401 || res.status === 403 ? 401 : res.status });
+  }
+  const text = String(data.choices?.[0]?.message?.content ?? "").trim();
+  if (!schema) return text;
+  const json = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try {
+    return JSON.parse(json);
+  } catch {
+    throw Object.assign(new Error("The model did not answer with valid JSON. Try a stronger model (OPENAI_MODEL)."), { status: 502 });
+  }
 }
 
 const RATER_SYSTEM =
@@ -221,7 +283,7 @@ async function handleApi(req, res) {
   if (req.url === "/api/claude" && req.method === "POST") {
     if (BACKEND === "none") {
       return sendJson(res, 503, {
-        error: "No way to reach Claude: install Claude Code and run “claude auth login”, or put ANTHROPIC_API_KEY in .env, then restart.",
+        error: "No AI examiner set up: put ANTHROPIC_API_KEY or OPENAI_API_KEY in .env (or install Claude Code and run “claude auth login”), then restart.",
       });
     }
     try {
@@ -230,7 +292,10 @@ async function handleApi(req, res) {
         return sendJson(res, 400, { error: "Expected { prompt, schema }" });
       }
       const t0 = Date.now();
-      const result = BACKEND === "api" ? await askClaude(body) : await askClaudeCode(body);
+      const result =
+        BACKEND === "api" ? await askClaude(body)
+        : BACKEND === "openai" ? await askOpenAI(body)
+        : await askClaudeCode(body);
       console.log(`${body.fast ? "interviewer" : "rating"} call: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
       return sendJson(res, 200, { result });
     } catch (err) {
@@ -322,9 +387,11 @@ const banner = () => {
   console.log(
     BACKEND === "api"
       ? `Rating with the Claude API (${MODEL})`
-      : BACKEND === "claude-code"
-        ? `Rating with Claude Code and your Claude subscription (${MODEL})`
-        : "Rating disabled: install Claude Code (claude auth login) or set ANTHROPIC_API_KEY in .env",
+      : BACKEND === "openai"
+        ? `Rating with an OpenAI-compatible API (${MODEL} at ${OPENAI_BASE})`
+        : BACKEND === "claude-code"
+          ? `Rating with Claude Code and your Claude subscription (${MODEL})`
+          : "Rating disabled: set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env, or install Claude Code (claude auth login)",
   );
 };
 

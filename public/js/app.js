@@ -191,7 +191,7 @@ async function goHome() {
       "p",
       { class: "muted" },
       "Practice exams for the Finnish National Certificate of Language Proficiency: basic level (A1–A2) and intermediate level (B1–B2). " +
-        "Same four subtests, task types, timing and rating scale as the real exam. Your writing and speaking are rated by Claude " +
+        "Same four subtests, task types, timing and rating scale as the real exam. Your writing and speaking are rated by an AI examiner (Claude by default) " +
         "against the official YKI criteria, and at the end you get your mistakes with corrections and a study plan.",
     ),
     envNotices(status),
@@ -348,7 +348,7 @@ function envNotices(status) {
         { class: "notice err" },
         status.kind === "none"
           ? "Rating server not reachable. Start the app with “npm start” and open http://localhost:5173."
-          : "Rating isn't set up — you can take the exam, but writing/speaking can't be rated. Install Claude Code and run “claude auth login” (uses your Claude subscription), or add ANTHROPIC_API_KEY to .env, then restart “npm start”.",
+          : "Rating isn't set up — you can take the exam, but writing/speaking can't be rated. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to .env (see the README), or install Claude Code and run “claude auth login”, then restart “npm start”.",
       ),
     );
   }
@@ -1229,7 +1229,7 @@ async function rateAll() {
     h(
       "p",
       { class: "muted" },
-      "Claude is rating each subtest like a YKI examiner. Writing and speaking take the longest (often 1–3 minutes).",
+      "The AI examiner is rating each subtest like a YKI examiner would. Writing and speaking take the longest (often 1–3 minutes).",
     ),
     h("div", { class: "card" }, statusList),
   );

@@ -5,11 +5,11 @@ A practice website for the Finnish YKI language exam (yleinen kielitutkinto). It
 - **Perustaso (A1–A2):** 10 exams, rated alle 1 / 1 / 2.
 - **Keskitaso (B1–B2):** 10 exams, rated alle 3 / 3 / 4.
 
-Each exam has the four subtests of the real test (reading, writing, listening, speaking) with the same task types and timing. Claude acts as the examiner: it rates your writing and speaking against the official YKI criteria, then shows every mistake with a correction, an explanation and a personal study plan.
+Each exam has the four subtests of the real test (reading, writing, listening, speaking) with the same task types and timing. An AI examiner (Claude by default, or ChatGPT and other models) rates your writing and speaking against the official YKI criteria, then shows every mistake with a correction, an explanation and a personal study plan.
 
 ## Quick start
 
-You need [Node.js](https://nodejs.org/) 20.12 or newer and a way to call Claude (see the next section).
+You need [Node.js](https://nodejs.org/) 20.12 or newer and an API key for the AI examiner: [Claude](#add-your-own-claude-api-key) (recommended) or [ChatGPT and others](#use-chatgpt-or-another-ai-instead-of-claude).
 
 ```bash
 git clone <this repository>
@@ -51,7 +51,45 @@ Costs: you pay Anthropic per use. Rating a full exam makes a few dozen calls, mo
 
 If the key is wrong, the results page says "The API key was rejected. Check ANTHROPIC_API_KEY in .env."
 
-### No API key? Use your Claude subscription
+## Use ChatGPT or another AI instead of Claude
+
+The server can also use any API that speaks the OpenAI Chat Completions format: OpenAI (ChatGPT's models), Google Gemini, OpenRouter, or a model running on your own computer with Ollama.
+
+### ChatGPT (OpenAI)
+
+1. Create an account at [platform.openai.com](https://platform.openai.com/) and add credits under **Settings → Billing**. A ChatGPT Plus subscription does not include API use; the API is billed separately.
+2. Create a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys) (it starts with `sk-`).
+3. Put it in `.env` (copy `.env.example` first if you haven't), and leave `ANTHROPIC_API_KEY` empty:
+
+   ```bash
+   OPENAI_API_KEY=sk-...your key...
+   OPENAI_MODEL=gpt-5
+   OPENAI_FAST_MODEL=gpt-5-mini
+   ```
+
+4. Restart the server. It prints `Rating with an OpenAI-compatible API (gpt-5 at https://api.openai.com/v1)`.
+
+`OPENAI_MODEL` rates the exam; `OPENAI_FAST_MODEL` asks the speaking interviewer's follow-up questions and should be a fast model. You can use any model your account has access to.
+
+### Other providers
+
+Set the provider's address in `OPENAI_BASE_URL`, its key in `OPENAI_API_KEY` and a model name it offers in `OPENAI_MODEL`:
+
+| Provider | `OPENAI_BASE_URL` | Key from | Example `OPENAI_MODEL` |
+|---|---|---|---|
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `gemini-2.5-pro` |
+| OpenRouter (many models, one key) | `https://openrouter.ai/api/v1` | [openrouter.ai/keys](https://openrouter.ai/keys) | `openai/gpt-5` |
+| Ollama (free, on your computer) | `http://localhost:11434/v1` | no key needed | `qwen2.5:14b` |
+
+For a provider without a key (Ollama), or when `.env` also has an `ANTHROPIC_API_KEY`, add `AI_PROVIDER=openai` so the server knows which one to use. Model names change over time; check the provider's model list.
+
+Good to know:
+
+- **Rating quality depends on the model.** The examiner instructions were written and tested with Claude. Large models (GPT-5, Gemini Pro) should rate well; small local models often misjudge Finnish grammar and give unreliable levels.
+- **The key stays on your computer**, just like the Claude key: only the local server reads `.env`.
+- **A wrong key** shows "The API key was rejected. Check OPENAI_API_KEY in .env." on the results page.
+
+## No API key? Use your Claude subscription
 
 If `.env` has no API key, the server rates through the [Claude Code](https://docs.claude.com/en/docs/claude-code) CLI instead, which uses your Claude Pro or Max subscription:
 
@@ -63,13 +101,20 @@ npm start                 # prints "Rating with Claude Code and your Claude subs
 
 `scripts/check-claude.sh` tests that this works.
 
-### Settings in `.env`
+## Settings in `.env`
 
 | Variable | Default | What it does |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | (empty) | Your Claude API key. Empty = use the Claude Code CLI. |
-| `YKI_MODEL` | `claude-opus-5-5` | Model that rates the exam. |
-| `YKI_FAST_MODEL` | `claude-sonnet-5-5` | Model for the speaking interviewer's quick follow-up questions. |
+| `ANTHROPIC_API_KEY` | (empty) | Your Claude API key. |
+| `YKI_MODEL` | `claude-opus-5-5` | Claude model that rates the exam. |
+| `YKI_FAST_MODEL` | `claude-sonnet-5-5` | Claude model for the speaking interviewer's quick follow-up questions. |
+| `OPENAI_API_KEY` | (empty) | Key for OpenAI or another OpenAI-compatible provider. |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Address of the OpenAI-compatible API. |
+| `OPENAI_MODEL` | `gpt-5` | Model that rates the exam. |
+| `OPENAI_FAST_MODEL` | `gpt-5-mini` | Model for the interviewer's follow-up questions. |
+| `AI_PROVIDER` | (automatic) | `anthropic` or `openai`. Needed only for keyless providers or when both keys are set. |
+
+With no key at all, the server uses the Claude Code CLI if you're signed in to it.
 | `PORT` | `5173` | Port of the local server. |
 
 ## Audio (listening and speaking prompts)
@@ -109,7 +154,7 @@ Like the real test, each recording plays twice on its own, with no pause or rewi
 ### How rating works
 
 - **Levels:** each subtest gets its own level, as on the real certificate.
-- **Reading and listening:** multiple-choice and true/false items are scored automatically. Open answers are rated by Claude for comprehension; spelling doesn't count. Points convert to a level (perustaso: 40% → 1, 70% → 2; keskitaso: 50% → 3, 75% → 4).
+- **Reading and listening:** multiple-choice and true/false items are scored automatically. Open answers are rated by the AI examiner for comprehension; spelling doesn't count. Points convert to a level (perustaso: 40% → 1, 70% → 2; keskitaso: 50% → 3, 75% → 4).
 - **Writing and speaking:** rated holistically against the official YKI criteria (`public/js/rubric.js`).
 - **Feedback:** for every task you get the reasons for the level, your mistakes with corrections, a corrected version of your answer and a model answer. A study plan groups your mistakes into patterns to practise.
 - **History:** results are saved in your browser's local storage only.
@@ -123,7 +168,7 @@ Like the real test, each recording plays twice on its own, with no pause or rewi
 
 ## Project layout
 
-- `server.js`: static server, plus `/api/claude` (rating; holds the API key) and `/api/tts` (macOS voice for follow-up questions).
+- `server.js`: static server, plus `/api/claude` (rating through Claude, an OpenAI-compatible API or the Claude Code CLI; holds the API key) and `/api/tts` (macOS voice for follow-up questions).
 - `public/js/exams/examN.js`: exam content, one file per exam, registered in `public/js/exam-data.js`.
 - `public/js/rubric.js`: the examiner instructions, based on the official criteria.
 - `public/js/rating.js`, `results.js`: scoring, rating calls, results page.
