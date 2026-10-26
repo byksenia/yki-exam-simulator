@@ -34,6 +34,13 @@ const client = hasKey && PROVIDER !== "openai" ? new Anthropic() : null;
 // subscription you are signed in with (`claude auth login`).
 function findClaudeCli() {
   try {
+    if (process.platform === "win32") {
+      // `where` lists every match; only the native claude.exe can be started without a shell.
+      const found = execFileSync("where", ["claude"], { encoding: "utf8" }).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const exe = found.find((f) => /\.exe$/i.test(f));
+      if (!exe && found.length) console.log("Found Claude Code, but not claude.exe. Install the native Windows version (see README → Windows).");
+      return exe || null;
+    }
     return execFileSync("/bin/sh", ["-lc", "command -v claude"], { encoding: "utf8" }).trim() || null;
   } catch {
     return null;

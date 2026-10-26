@@ -123,7 +123,55 @@ The listening recordings and the interviewer's questions are read by a text-to-s
 - **On macOS (best quality):** install a natural Finnish voice, then pre-render all clips once:
   1. System Settings → Accessibility → Spoken Content → System voice → Manage voices → Finnish → download **Satu (Enhanced)** or a Premium voice.
   2. Run `npm run audio` (takes about 15–20 minutes). The clips go to `public/audio/`.
-- **On Windows or Linux:** skip this. The app uses the browser's own Finnish voice. Make sure a Finnish voice is installed in your operating system or browser.
+- **On Windows or Linux:** skip this. The app uses the browser's own Finnish voice; see [Windows](#windows) for the best setup.
+
+## Windows
+
+The app runs on Windows. Only a few Mac-specific parts behave differently.
+
+### Setup
+
+1. Install [Node.js](https://nodejs.org/) (the LTS version) and [Git for Windows](https://git-scm.com/download/win).
+2. In PowerShell:
+
+   ```powershell
+   git clone <this repository>
+   cd <repository folder>
+   npm install
+   cp .env.example .env
+   notepad .env              # paste your API key, save, close
+   npm start                 # → http://localhost:5173
+   ```
+
+3. Open http://localhost:5173 in **Microsoft Edge** (recommended) or Chrome.
+
+### Voice (listening recordings and interview questions)
+
+- `npm run audio` does not work on Windows; it needs the macOS voices. Skip it. The app then reads everything aloud with the browser's own Finnish voice.
+- **Edge sounds best.** It includes Microsoft's natural online Finnish voices (Noora and Harri), and the app picks them automatically. Dialogues alternate between the two voices.
+- **In Chrome** the app uses the Finnish voice installed in Windows. If there is none, Finnish is read with an English accent. Install one: **Settings → Time & language → Speech → Manage voices → Add voices → Suomi (Finnish)**, then restart the browser.
+- To check which voices your browser has, open the browser console (F12) on the app page and run `speechSynthesis.getVoices().filter(v => v.lang.startsWith("fi"))`.
+
+### Speaking test
+
+- Speech recognition works in Edge and Chrome, which both support Finnish. Allow the microphone when asked. The browser sends your speech to Microsoft or Google for transcription.
+
+### Rating
+
+- **With an API key** (Claude or ChatGPT, see above), everything works the same as on a Mac.
+- **With a Claude subscription instead of a key**, install the native Windows version of Claude Code in PowerShell, then sign in:
+
+  ```powershell
+  irm https://claude.ai/install.ps1 | iex
+  claude auth login
+  ```
+
+  The server looks for `claude.exe`. A Claude Code installed with `npm install -g` is not picked up on Windows.
+
+### Phone mode
+
+- `npm run phone` creates its certificate with `openssl`. Git for Windows includes it; if the command still isn't found, run `npm run phone` from **Git Bash** instead of PowerShell.
+- Windows Firewall will ask whether Node.js may accept connections: allow it on private networks.
 
 ## Using it on a phone
 
