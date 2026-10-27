@@ -727,3 +727,15 @@ main > p, .card > p { max-width: 80ch; }
   .level-switch { display: flex; }
   .level-switch button { flex: 1; padding: 11px 10px; font-size: 14px; }
 }
+
+/* a level where one point more or less would change it */
+.borderline {
+  margin-top: 8px;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--warn-soft);
+  color: var(--warn);
+}

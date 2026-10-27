@@ -130,6 +130,35 @@ function pointsToLevel(points, max, cut, level = "perustaso") {
   return below;
 }
 
+// When one point more or less would change the level, the result is borderline: the real
+// exam's cutoffs are not published and are scaled per session, so it could go either way.
+export function borderlineOf(points, max, cut, level) {
+  const now = pointsToLevel(points, max, cut, level);
+  const down = points > 0 ? pointsToLevel(points - 1, max, cut, level) : now;
+  const up = points < max ? pointsToLevel(points + 1, max, cut, level) : now;
+  if (down !== now) return { direction: "down", other: down };
+  if (up !== now) return { direction: "up", other: up };
+  return null;
+}
+
+// Exact counts per question type, computed here so the AI never has to guess them.
+export function breakdownOf(items) {
+  const count = (list) => [list.filter((i) => i.isCorrect).length, list.length];
+  return { closed: count(items.filter((i) => i.type !== "open")), open: count(items.filter((i) => i.type === "open")) };
+}
+
+export function describeScore(r) {
+  const pct = Math.round((100 * r.points) / r.maxPoints);
+  const b = r.breakdown;
+  const parts = b ? [b.closed[1] ? `multiple choice and true/false ${b.closed[0]}/${b.closed[1]}` : "", b.open[1] ? `open answers ${b.open[0]}/${b.open[1]}` : ""].filter(Boolean) : [];
+  const edge = r.borderline
+    ? r.borderline.direction === "down"
+      ? ` Borderline: one point fewer would be level ${r.borderline.other}.`
+      : ` Borderline: one point more would be level ${r.borderline.other}.`
+    : "";
+  return `${r.points}/${r.maxPoints} points (${pct}%)${parts.length ? ": " + parts.join(", ") : ""}.${edge}`;
+}
+
 // Score multiple-choice / true-false locally; open answers are left pending (isCorrect null).
 export function scoreObjective(section, state, level = "perustaso") {
   const items = [];
@@ -159,7 +188,14 @@ export function scoreObjective(section, state, level = "perustaso") {
     }
   }
   const points = items.filter((i) => i.isCorrect).length;
-  return { items, points, maxPoints: items.length, level: pointsToLevel(points, items.length, section.cutoffs, level) };
+  return {
+    items,
+    points,
+    maxPoints: items.length,
+    level: pointsToLevel(points, items.length, section.cutoffs, level),
+    breakdown: breakdownOf(items),
+    borderline: borderlineOf(points, items.length, section.cutoffs, level),
+  };
 }
 
 async function rateObjective(section, state, level) {
@@ -176,7 +212,7 @@ async function rateObjective(section, state, level) {
           : (task.texts || [task.text]).map((t) => (t.title ? t.title + "\n" : "") + t.body).join("\n\n");
       return `### Item ${it.id}\nSOURCE ${section.id === "listening" ? "(transcript of the recording)" : "(text)"}:\n${source}\n\nQUESTION: ${it.q}\nACCEPTED ANSWERS (key): ${it.context.accept.join(" | ")}\nKEY NOTE: ${it.context.keyNote || "-"}\nCANDIDATE'S ANSWER: ${it.given}`;
     });
-    const prompt = `${R.openAnswers}\n\nRate these short open answers from the YKI ${level} ${section.id === "listening" ? "listening (puheen ymmärtäminen)" : "reading (tekstin ymmärtäminen)"} subtest.\n\n${blocks.join("\n\n")}\n\nFor each item return isCorrect and a one- or two-sentence explanation in English (why it is right/wrong, quoting the relevant place in the source). In "summary", give 2–3 sentences in English about the candidate's comprehension in this subtest overall, considering ALL their answers, including these multiple-choice results: ${base.items
+    const prompt = `${R.openAnswers}\n\nRate these short open answers from the YKI ${level} ${section.id === "listening" ? "listening (puheen ymmärtäminen)" : "reading (tekstin ymmärtäminen)"} subtest.\n\n${blocks.join("\n\n")}\n\nFor each item return isCorrect and a one- or two-sentence explanation in English (why it is right/wrong, quoting the relevant place in the source). In "summary", give 2–3 sentences in English describing the candidate's comprehension in this subtest qualitatively: what kind of information they understood and what they missed. Do NOT state numbers, counts, percentages or a level — the app adds the exact score. The candidate's other answers (multiple choice / true-false, already scored): ${base.items
       .filter((i) => !i.pending)
       .map((i) => `${i.id}:${i.isCorrect ? "right" : "wrong"}`)
       .join(", ")}.`;
@@ -198,6 +234,8 @@ async function rateObjective(section, state, level) {
     points,
     maxPoints: base.maxPoints,
     level: pointsToLevel(points, base.maxPoints, section.cutoffs, level),
+    breakdown: breakdownOf(base.items),
+    borderline: borderlineOf(points, base.maxPoints, section.cutoffs, level),
     summary,
   };
 }
@@ -265,11 +303,14 @@ export async function buildStudyPlan(results, sections, level = "perustaso") {
     if (!r || r.error) return `## ${s.id}: not rated`;
     if (s.id === "reading" || s.id === "listening") {
       const wrong = r.items.filter((i) => !i.isCorrect).map((i) => `- ${i.q} | answered: ${i.given || "(blank)"} | key: ${i.correct} | ${i.explanation}`);
-      return `## ${s.id}: level ${r.level}, ${r.points}/${r.maxPoints}\n${r.summary || ""}\nWrong answers:\n${wrong.join("\n") || "none"}`;
+      const edge = r.borderline
+        ? `\nBORDERLINE RESULT: one point ${r.borderline.direction === "down" ? "fewer" : "more"} would give level ${r.borderline.other}. Say clearly that the level is on the edge; do not call it solid, comfortable or safe.`
+        : "";
+      return `## ${s.id}: level ${r.level}, ${describeScore(r)}${edge}\n${r.summary || ""}\nWrong answers:\n${wrong.join("\n") || "none"}`;
     }
     const ms = r.tasks.flatMap((t) => t.mistakes.map((m) => `- [${m.category}] ${m.original} → ${m.correction} (${m.explanation})`));
     return `## ${s.id}: level ${r.level}\n${r.summary}\n${r.tasks.map((t) => `${t.taskId}: ${t.examinerComment}`).join("\n")}\nMistakes:\n${ms.join("\n") || "none"}`;
   });
-  const prompt = `${rubricFor(level).studyPlan}\n\nRESULTS OF THE PRACTICE EXAM:\n\n${parts.join("\n\n")}`;
+  const prompt = `${rubricFor(level).studyPlan}\n\nUse only the scores and counts given below; never recompute, estimate or invent numbers of questions or points.\n\nRESULTS OF THE PRACTICE EXAM:\n\n${parts.join("\n\n")}`;
   return askClaudeJson(prompt, PLAN_SCHEMA);
 }

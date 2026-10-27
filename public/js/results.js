@@ -1,6 +1,19 @@
 // Results page: levels per subtest, per-task examiner feedback, mistakes with fixes,
 // and the study plan.
 
+import { describeScore, breakdownOf, borderlineOf } from "./rating.js";
+
+// "on the edge" line for a score where one point would change the level
+function borderlineNote(r, h) {
+  if (!r?.borderline) return null;
+  const { direction, other } = r.borderline;
+  return h(
+    "div",
+    { class: "borderline" },
+    direction === "down" ? `Borderline: one point fewer would be level ${other}` : `Borderline: one point more would be level ${other}`,
+  );
+}
+
 function levelClass(level) {
   if (level === "2" || level === "4") return "ok";
   if (level === "1" || level === "3") return "warn";
@@ -10,6 +23,14 @@ function levelClass(level) {
 export function renderResults({ record, exam, audio, h, SECTION_INFO, onHome, onRetry }) {
   const { results, plan } = record;
   const sections = record.order.map((id) => exam.sections.find((s) => s.id === id));
+  // Results saved before the breakdown existed get it computed from their items.
+  for (const s of sections) {
+    const r = results[s.id];
+    if (r?.items && r.points != null && s.cutoffs) {
+      r.breakdown ??= breakdownOf(r.items);
+      if (!("borderline" in r)) r.borderline = borderlineOf(r.points, r.maxPoints, s.cutoffs, exam.level || "perustaso");
+    }
+  }
 
   const tiles = h(
     "div",
@@ -27,6 +48,7 @@ export function renderResults({ record, exam, audio, h, SECTION_INFO, onHome, on
           r.points != null ? `${r.points}/${r.maxPoints} p. · ` : "",
           r.level ? levelName(r.level) : r.error ? "ei arvioitu" : "",
         ),
+        borderlineNote(r, h),
       );
     }),
   );
@@ -155,8 +177,8 @@ function renderSection(section, r, record, audio, h, SECTION_INFO, onRetry) {
       head,
       r.error ? h("div", { class: "notice err" }, "Avoimet vastaukset jäivät arvioimatta: " + r.error) : null,
       r.error ? retry("Arvioi avoimet vastaukset uudelleen") : null,
+      h("p", { class: "small muted" }, r.points != null ? describeScore(r) : ""),
       r.summary ? h("p", {}, r.summary) : null,
-      h("p", { class: "small muted" }, `${r.points}/${r.maxPoints} pistettä`),
       section.tasks.map((task) => {
         const items = (r.items || []).filter((it) => it.taskId === task.id);
         return h(
